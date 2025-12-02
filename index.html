@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Character Battle</title>
+<style>
+  body {
+    margin:0; padding:0;
+    font-family: 'Arial', sans-serif;
+    overflow-x: hidden;
+    background: #0c0c0c;
+    color: #fff;
+    height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+  }
+
+  /* Water slide overlay */
+  .water-slide {
+    position: fixed;
+    top: -100%;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,200,255,0.15);
+    backdrop-filter: blur(2px);
+    pointer-events: none;
+    z-index: 10;
+    animation: slideWater 10s linear forwards;
+  }
+  @keyframes slideWater { 0%{top:-100%;} 100%{top:0%;} }
+
+  /* Glass UI */
+  .glass-ui {
+    position: relative;
+    z-index: 20;
+    backdrop-filter: blur(20px);
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+    width: 80%;
+    max-width: 900px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    opacity:0;
+    transform: translateY(50px);
+    transition: all 1s ease;
+  }
+  .glass-ui.show { opacity:1; transform: translateY(0); }
+
+  /* Left spinning + tilt card */
+  .card {
+    width:200px; height:300px;
+    border-radius:15px;
+    border:2px solid #0ff;
+    overflow:hidden;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    animation: spinTilt 20s linear infinite;
+    background: #111;
+  }
+  @keyframes spinTilt {
+    0% { transform: rotateY(0deg) rotateZ(-2deg); }
+    25% { transform: rotateY(90deg) rotateZ(2deg); }
+    50% { transform: rotateY(180deg) rotateZ(-2deg); }
+    75% { transform: rotateY(270deg) rotateZ(2deg); }
+    100% { transform: rotateY(360deg) rotateZ(-2deg); }
+  }
+  .card img { width:100%; height:100%; object-fit:cover; border-radius:15px; }
+
+  /* Right info panel */
+  .info-panel { width:55%; padding-left:20px; }
+  .info-panel h2{ margin:0 0 10px; }
+  .info-panel p{ margin:5px 0; }
+  .select-btns button, .element-btns button {
+    margin:5px; padding:10px 15px;
+    border:none; border-radius:8px; cursor:pointer;
+    background: rgba(0,200,255,0.2); color:#0ff; transition:0.3s;
+  }
+  .select-btns button:hover, .element-btns button:hover{ background: rgba(0,200,255,0.4); }
+
+  /* Collapsible element */
+  .collapsible {
+    background: rgba(0,200,255,0.1); color:#0ff; cursor:pointer;
+    padding:10px; width:100%; border:none; text-align:left;
+    outline:none; font-size:16px; margin-top:10px; border-radius:8px;
+  }
+  .active, .collapsible:hover { background: rgba(0,200,255,0.3); }
+  .content { padding:0 10px; display:none; overflow:hidden; margin-top:5px; }
+  .content button { margin:3px; }
+</style>
+</head>
+<body>
+
+<div class="water-slide"></div>
+
+<div class="glass-ui" id="glassUI">
+  <div class="card" id="battleCard">
+    <img id="charImg" src="" alt="Character">
+  </div>
+  <div class="info-panel">
+    <div class="select-btns" id="selectBtns">
+      <button data-char="Vale" data-gender="Male">Vale</button>
+      <button data-char="Nerya" data-gender="Female">Nerya</button>
+      <button data-char="Yin" data-gender="Male">Yin</button>
+      <button data-char="Mizuki" data-gender="Female">Mizuki</button>
+      <button data-char="Chasca" data-gender="Female">Chasca</button>
+    </div>
+
+    <div id="infoCard" style="display:none;">
+      <h2 id="charName"></h2>
+      <p id="charGender"></p>
+      <p id="charStatus">Status: Normal Character</p>
+      <p id="charBirthday"></p>
+
+      <button type="button" class="collapsible">Select Element</button>
+      <div class="content element-btns">
+        <button data-element="Pyro">Pyro</button>
+        <button data-element="Hydro">Hydro</button>
+        <button data-element="Electro">Electro</button>
+        <button data-element="Cryo">Cryo</button>
+        <button data-element="Geo">Geo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const glassUI = document.getElementById("glassUI");
+  const selectBtnsDiv = document.getElementById("selectBtns");
+  const infoCard = document.getElementById("infoCard");
+  const charName = document.getElementById("charName");
+  const charGender = document.getElementById("charGender");
+  const charBirthday = document.getElementById("charBirthday");
+  const charImg = document.getElementById("charImg");
+  const collapsible = document.querySelector(".collapsible");
+  const elementBtnsDiv = document.querySelector(".element-btns");
+
+  const charImages = {
+    "Vale":"https://i.imgur.com/4X8R0tC.png",
+    "Nerya":"https://i.imgur.com/7J6Yl8H.png",
+    "Yin":"https://i.imgur.com/ZnXQm9o.png",
+    "Mizuki":"https://i.imgur.com/T8I9v7G.png",
+    "Chasca":"https://i.imgur.com/Nh3J1kF.png"
+  };
+
+  const spreadsheetURL = "https://script.google.com/macros/s/AKfycbwg93tznZiuwkRkX_ORiVoubRRYGqI2jwuQHbhPPb0zqstDU3bBwiqR9tbS2W_1-fkK/exec";
+
+  // Show glass UI after 10 sec
+  setTimeout(()=> { glassUI.classList.add("show"); }, 10000);
+
+  // Fetch username from daily reward page
+  const username = localStorage.getItem("username") || "Guest";
+
+  // Check if character already chosen
+  const playerData = JSON.parse(localStorage.getItem("playerData"));
+  if(playerData){
+    showSelectedCharacter(playerData.character, playerData.gender, playerData.element);
+  }
+
+  // Character selection
+  selectBtnsDiv.querySelectorAll("button").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const character = btn.getAttribute("data-char");
+      const gender = btn.getAttribute("data-gender");
+      const birthday = "2000-01-"+Math.floor(Math.random()*28+1);
+      charName.textContent = character;
+      charGender.textContent = "Gender: " + gender;
+      charBirthday.textContent = "Birthday: " + birthday;
+      charImg.src = charImages[character];
+
+      selectBtnsDiv.style.display="none";
+      infoCard.style.display="block";
+
+      localStorage.setItem("playerData", JSON.stringify({character, gender, birthday}));
+    });
+  });
+
+  // Collapsible element selection
+  collapsible.addEventListener("click", function(){
+    this.classList.toggle("active");
+    const content = this.nextElementSibling;
+    content.style.display=(content.style.display==="block") ? "none":"block";
+  });
+
+  // Element selection buttons
+  elementBtnsDiv.querySelectorAll("button").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const element = btn.getAttribute("data-element");
+      btn.style.background="rgba(0,255,255,0.5)";
+      btn.style.pointerEvents="none";
+
+      const savedData = JSON.parse(localStorage.getItem("playerData"));
+      savedData.element = element;
+      localStorage.setItem("playerData", JSON.stringify(savedData));
+
+      // Send to Google Spreadsheet
+      fetch(spreadsheetURL, {
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({
+          username: username,
+          character: savedData.character,
+          element: element
+        })
+      }).then(res=>res.json())
+      .then(data=>console.log("Saved to sheet:", data))
+      .catch(err=>console.error(err));
+
+      elementBtnsDiv.style.display="none";
+      collapsible.style.display="none";
+    });
+  });
+
+  function showSelectedCharacter(character, gender, element){
+    charName.textContent = character;
+    charGender.textContent = "Gender: " + gender;
+    charBirthday.textContent = JSON.parse(localStorage.getItem("playerData")).birthday;
+    charImg.src = charImages[character];
+    selectBtnsDiv.style.display="none";
+    infoCard.style.display="block";
+
+    if(element){
+      collapsible.style.display="none";
+      elementBtnsDiv.style.display="none";
+    }
+  }
+</script>
+</body>
+</html>
